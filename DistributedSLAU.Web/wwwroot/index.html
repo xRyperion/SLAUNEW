@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang='ru'>
+<head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <title>Распределённое решение СЛАУ (до 5000×5000)</title>
+    <link href='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css' rel='stylesheet'>
+    <link href='https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css' rel='stylesheet'>
+    <style>
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .card { border-radius: 15px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); border: none; }
+        .card-header { border-radius: 15px 15px 0 0 !important; font-weight: bold; }
+        .btn-gradient { background: linear-gradient(45deg, #667eea, #764ba2); color: white; border: none; }
+        .log-container { max-height: 300px; overflow-y: auto; background: #1e1e1e; color: #00ff00; font-family: Consolas, monospace; padding: 10px; border-radius: 5px; }
+        .result-box { background: #f8f9fa; border-left: 4px solid #667eea; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .matrix-preview { font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class='container py-4'>
+        <h1 class='text-center text-white mb-4'><i class='bi bi-calculator'></i> Распределённое решение СЛАУ<br><small style='font-size:0.5em'>Метод Гаусса до 5000×5000</small></h1>
+        
+        <div class='row'>
+            <div class='col-md-4 mb-4'>
+                <div class='card h-100'>
+                    <div class='card-header bg-primary text-white'><i class='bi bi-pc-display'></i> Воркеры</div>
+                    <div class='card-body'>
+                        <div class='d-grid gap-2 mb-3'>
+                            <button class='btn btn-success' onclick='startWorker(11001)'><i class='bi bi-play-fill'></i> Запустить :11001</button>
+                            <button class='btn btn-success' onclick='startWorker(11002)'><i class='bi bi-play-fill'></i> Запустить :11002</button>
+                            <button class='btn btn-success' onclick='startWorker(11003)'><i class='bi bi-play-fill'></i> Запустить :11003</button>
+                            <button class='btn btn-danger' onclick='stopAllWorkers()'><i class='bi bi-stop-fill'></i> Остановить все</button>
+                        </div>
+                        <h6>Активные: <span id='activeWorkers' class='badge bg-success'>0</span></h6>
+                        <div id='workersList' class='mt-2'></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class='col-md-8 mb-4'>
+                <div class='card h-100'>
+                    <div class='card-header bg-success text-white'><i class='bi bi-table'></i> Система</div>
+                    <div class='card-body'>
+                        <div class='row mb-3'>
+                            <div class='col-md-4'>
+                                <label class='form-label'>Размер (2-5000)</label>
+                                <input type='number' id='matrixSize' class='form-control' value='100' min='2' max='5000'>
+                            </div>
+                            <div class='col-md-4'>
+                                <label class='form-label'>Seed</label>
+                                <input type='number' id='seed' class='form-control' placeholder='42'>
+                            </div>
+                            <div class='col-md-4 d-flex align-items-end'>
+                                <button class='btn btn-gradient w-100' onclick='generateSystem()'><i class='bi bi-magic'></i> Сгенерировать</button>
+                            </div>
+                        </div>
+                        <div id='systemInfo' class='alert alert-info'><i class='bi bi-info-circle'></i> Система не загружена</div>
+                        <div id='matrixPreview' class='matrix-preview'></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class='row mb-4'>
+            <div class='col-12'>
+                <div class='card'>
+                    <div class='card-header bg-warning text-dark'><i class='bi bi-gear-fill'></i> Решение</div>
+                    <div class='card-body'>
+                        <div class='row'>
+                            <div class='col-md-3'>
+                                <button class='btn btn-primary w-100' onclick='solveSequential()' id='btnSequential'><i class='bi bi-cpu'></i> Последовательное</button>
+                            </div>
+                            <div class='col-md-3'>
+                                <button class='btn btn-info w-100 text-white' onclick='solveDistributed()' id='btnDistributed'><i class='bi bi-hdd-network'></i> Распределённое</button>
+                            </div>
+                            <div class='col-md-3'>
+                                <button class='btn btn-gradient w-100' onclick='compareMethods()'><i class='bi bi-graph-up'></i> Сравнить</button>
+                            </div>
+                            <div class='col-md-3'>
+                                <button class='btn btn-secondary w-100' onclick='clearSystem()'><i class='bi bi-trash'></i> Очистить</button>
+                            </div>
+                        </div>
+                        <div id='loading' class='text-center mt-3' style='display:none;'>
+                            <div class='spinner-border text-primary'></div>
+                            <p class='mt-2' id='loadingText'>Решение...</p>
+                        </div>
+                        <div id='results' class='mt-3'></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class='row'>
+            <div class='col-md-6 mb-4'>
+                <div class='card h-100'>
+                    <div class='card-header bg-dark text-white'><i class='bi bi-terminal'></i> Лог</div>
+                    <div class='card-body'>
+                        <div id='log' class='log-container'></div>
+                        <button class='btn btn-sm btn-outline-secondary mt-2' onclick='clearLog()'><i class='bi bi-trash'></i> Очистить</button>
+                    </div>
+                </div>
+            </div>
+            <div class='col-md-6 mb-4'>
+                <div class='card h-100'>
+                    <div class='card-header bg-info text-white'><i class='bi bi-clock-history'></i> История</div>
+                    <div class='card-body'>
+                        <div id='history' class='overflow-auto' style='max-height:300px;'></div>
+                        <button class='btn btn-sm btn-outline-secondary mt-2' onclick='clearHistory()'><i class='bi bi-trash'></i> Очистить</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src='https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js'></script>
+    <script src='app.js'></script>
+</body>
+</html>
